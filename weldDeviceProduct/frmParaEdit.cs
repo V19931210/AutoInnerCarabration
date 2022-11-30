@@ -97,7 +97,7 @@ namespace weldDeviceProduct
             DialogResult res = MessageBox.Show("确定要将参数写入寻缝器吗?", "Attention!", msgButton);
             if (res == DialogResult.OK)
             {
-                ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.WriteParaToVision, ref frmMain.id)
+                ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.WriteMechanicPara, ref frmMain.id)
                 {
                     DeviceType = textDeviceType.Text,
                     SN = textDeviceSN.Text,
@@ -228,7 +228,7 @@ namespace weldDeviceProduct
             {
                 if (flag == null)
                 {
-                    Thread.Sleep(2000);
+                    Thread.Sleep(1000);
                     flag = testLotSn(req, ref resp);
                 }
                 else
@@ -325,13 +325,13 @@ namespace weldDeviceProduct
         {
             if (cbbResult.SelectedIndex == 0)
             {
-                labeNGRemark.Enabled = false;
-                textNGRemark.Enabled = false;
+                labeNGRemark.Visible = false;
+                textNGRemark.Visible = false;
             }
             else
             {
-                labeNGRemark.Enabled = true;
-                textNGRemark.Enabled = true;
+                labeNGRemark.Visible = true;
+                textNGRemark.Visible = true;
             }
         }
 

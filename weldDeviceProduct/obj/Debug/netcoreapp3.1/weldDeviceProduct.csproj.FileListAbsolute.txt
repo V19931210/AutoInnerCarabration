@@ -54,3 +54,4 @@ D:\_2022\AutoInnerCarabration\weldDeviceProduct\obj\Debug\netcoreapp3.1\weldDevi
 D:\_2022\AutoInnerCarabration\weldDeviceProduct\obj\Debug\netcoreapp3.1\weldDeviceProduct.dll
 D:\_2022\AutoInnerCarabration\weldDeviceProduct\obj\Debug\netcoreapp3.1\weldDeviceProduct.pdb
 D:\_2022\AutoInnerCarabration\weldDeviceProduct\obj\Debug\netcoreapp3.1\weldDeviceProduct.genruntimeconfig.cache
+D:\_2022\AutoInnerCarabration\weldDeviceProduct\obj\Debug\netcoreapp3.1\weldDeviceProduct.frmExpert.resources

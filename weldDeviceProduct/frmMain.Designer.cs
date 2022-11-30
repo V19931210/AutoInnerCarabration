@@ -53,6 +53,8 @@ namespace weldDeviceProduct
             this.btnStopCaliing = new System.Windows.Forms.Button();
             this.Log = new System.Windows.Forms.TextBox();
             this.groupBoxGlobalPara = new System.Windows.Forms.GroupBox();
+            this.labelTGQSensorDist = new System.Windows.Forms.Label();
+            this.lineTGQSensorDist = new System.Windows.Forms.NumericUpDown();
             this.labelTGQTotalTravel = new System.Windows.Forms.Label();
             this.lineTGQTotalTravel = new System.Windows.Forms.NumericUpDown();
             this.labelTGQMesaDist = new System.Windows.Forms.Label();
@@ -65,21 +67,23 @@ namespace weldDeviceProduct
             this.lineActualDist = new System.Windows.Forms.NumericUpDown();
             this.lableOptViewDist = new System.Windows.Forms.Label();
             this.lineOptViewDist = new System.Windows.Forms.NumericUpDown();
+            this.menuStrip1 = new System.Windows.Forms.MenuStrip();
+            this.高级设置ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuExpertMode = new System.Windows.Forms.ToolStripMenuItem();
             this.pnlMainFrom = new System.Windows.Forms.Panel();
             this.timerUpdateFrm = new System.Windows.Forms.Timer(this.components);
-            this.labelTGQSensorDist = new System.Windows.Forms.Label();
-            this.lineTGQSensorDist = new System.Windows.Forms.NumericUpDown();
             this.pnlOperator.SuspendLayout();
             this.groupBox5.SuspendLayout();
             this.groupBox4.SuspendLayout();
             this.groupBox3.SuspendLayout();
             this.groupBox1.SuspendLayout();
             this.groupBoxGlobalPara.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.lineTGQSensorDist)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineTGQTotalTravel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineTGQMesaDist)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineActualDist)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineOptViewDist)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.lineTGQSensorDist)).BeginInit();
+            this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
             // pnlOperator
@@ -93,6 +97,7 @@ namespace weldDeviceProduct
             this.pnlOperator.Controls.Add(this.groupBox1);
             this.pnlOperator.Controls.Add(this.Log);
             this.pnlOperator.Controls.Add(this.groupBoxGlobalPara);
+            this.pnlOperator.Controls.Add(this.menuStrip1);
             this.pnlOperator.Dock = System.Windows.Forms.DockStyle.Right;
             this.pnlOperator.ForeColor = System.Drawing.SystemColors.Control;
             this.pnlOperator.Location = new System.Drawing.Point(921, 0);
@@ -103,7 +108,7 @@ namespace weldDeviceProduct
             // btnBanDisplaySomeLog
             // 
             this.btnBanDisplaySomeLog.ForeColor = System.Drawing.SystemColors.Control;
-            this.btnBanDisplaySomeLog.Location = new System.Drawing.Point(144, 520);
+            this.btnBanDisplaySomeLog.Location = new System.Drawing.Point(144, 543);
             this.btnBanDisplaySomeLog.Name = "btnBanDisplaySomeLog";
             this.btnBanDisplaySomeLog.Size = new System.Drawing.Size(66, 52);
             this.btnBanDisplaySomeLog.TabIndex = 5;
@@ -114,7 +119,7 @@ namespace weldDeviceProduct
             // btnClearLog
             // 
             this.btnClearLog.ForeColor = System.Drawing.SystemColors.Control;
-            this.btnClearLog.Location = new System.Drawing.Point(216, 520);
+            this.btnClearLog.Location = new System.Drawing.Point(216, 543);
             this.btnClearLog.Name = "btnClearLog";
             this.btnClearLog.Size = new System.Drawing.Size(66, 52);
             this.btnClearLog.TabIndex = 5;
@@ -126,7 +131,7 @@ namespace weldDeviceProduct
             // 
             this.groupBox5.Controls.Add(this.btnReadOptViewDist);
             this.groupBox5.ForeColor = System.Drawing.SystemColors.Control;
-            this.groupBox5.Location = new System.Drawing.Point(207, 210);
+            this.groupBox5.Location = new System.Drawing.Point(207, 233);
             this.groupBox5.Name = "groupBox5";
             this.groupBox5.Size = new System.Drawing.Size(81, 77);
             this.groupBox5.TabIndex = 17;
@@ -149,7 +154,7 @@ namespace weldDeviceProduct
             this.groupBox4.Controls.Add(this.labelLaserHoldSpacePercent);
             this.groupBox4.Controls.Add(this.btnOpenCloseLaser);
             this.groupBox4.ForeColor = System.Drawing.SystemColors.Control;
-            this.groupBox4.Location = new System.Drawing.Point(6, 210);
+            this.groupBox4.Location = new System.Drawing.Point(6, 233);
             this.groupBox4.Name = "groupBox4";
             this.groupBox4.Size = new System.Drawing.Size(195, 77);
             this.groupBox4.TabIndex = 16;
@@ -199,7 +204,7 @@ namespace weldDeviceProduct
             this.groupBox3.Controls.Add(this.btnParaEdit);
             this.groupBox3.Controls.Add(this.btnCalMat);
             this.groupBox3.ForeColor = System.Drawing.SystemColors.Control;
-            this.groupBox3.Location = new System.Drawing.Point(6, 405);
+            this.groupBox3.Location = new System.Drawing.Point(6, 428);
             this.groupBox3.Name = "groupBox3";
             this.groupBox3.Size = new System.Drawing.Size(282, 109);
             this.groupBox3.TabIndex = 17;
@@ -269,7 +274,7 @@ namespace weldDeviceProduct
             this.groupBox1.Controls.Add(this.btnReadEndPoint);
             this.groupBox1.Controls.Add(this.btnStopCaliing);
             this.groupBox1.ForeColor = System.Drawing.SystemColors.Control;
-            this.groupBox1.Location = new System.Drawing.Point(6, 290);
+            this.groupBox1.Location = new System.Drawing.Point(6, 313);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.Size = new System.Drawing.Size(282, 109);
             this.groupBox1.TabIndex = 15;
@@ -334,7 +339,7 @@ namespace weldDeviceProduct
             // 
             this.Log.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.Log.ForeColor = System.Drawing.SystemColors.Control;
-            this.Log.Location = new System.Drawing.Point(6, 578);
+            this.Log.Location = new System.Drawing.Point(6, 601);
             this.Log.Multiline = true;
             this.Log.Name = "Log";
             this.Log.ReadOnly = true;
@@ -359,12 +364,43 @@ namespace weldDeviceProduct
             this.groupBoxGlobalPara.Controls.Add(this.lableOptViewDist);
             this.groupBoxGlobalPara.Controls.Add(this.lineOptViewDist);
             this.groupBoxGlobalPara.ForeColor = System.Drawing.SystemColors.Control;
-            this.groupBoxGlobalPara.Location = new System.Drawing.Point(6, 12);
+            this.groupBoxGlobalPara.Location = new System.Drawing.Point(6, 35);
             this.groupBoxGlobalPara.Name = "groupBoxGlobalPara";
             this.groupBoxGlobalPara.Size = new System.Drawing.Size(282, 195);
             this.groupBoxGlobalPara.TabIndex = 0;
             this.groupBoxGlobalPara.TabStop = false;
             this.groupBoxGlobalPara.Text = "全局参数（单位：mm）";
+            // 
+            // labelTGQSensorDist
+            // 
+            this.labelTGQSensorDist.AutoSize = true;
+            this.labelTGQSensorDist.Location = new System.Drawing.Point(6, 79);
+            this.labelTGQSensorDist.Name = "labelTGQSensorDist";
+            this.labelTGQSensorDist.Size = new System.Drawing.Size(140, 17);
+            this.labelTGQSensorDist.TabIndex = 16;
+            this.labelTGQSensorDist.Text = "调高器当前距寻缝器距离";
+            this.labelTGQSensorDist.Visible = false;
+            // 
+            // lineTGQSensorDist
+            // 
+            this.lineTGQSensorDist.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.lineTGQSensorDist.DecimalPlaces = 2;
+            this.lineTGQSensorDist.ForeColor = System.Drawing.SystemColors.Control;
+            this.lineTGQSensorDist.Location = new System.Drawing.Point(159, 77);
+            this.lineTGQSensorDist.Maximum = new decimal(new int[] {
+            10000,
+            0,
+            0,
+            0});
+            this.lineTGQSensorDist.Name = "lineTGQSensorDist";
+            this.lineTGQSensorDist.Size = new System.Drawing.Size(105, 23);
+            this.lineTGQSensorDist.TabIndex = 15;
+            this.lineTGQSensorDist.Value = new decimal(new int[] {
+            8311,
+            0,
+            0,
+            131072});
+            this.lineTGQSensorDist.Visible = false;
             // 
             // labelTGQTotalTravel
             // 
@@ -374,6 +410,7 @@ namespace weldDeviceProduct
             this.labelTGQTotalTravel.Size = new System.Drawing.Size(80, 17);
             this.labelTGQTotalTravel.TabIndex = 14;
             this.labelTGQTotalTravel.Text = "调高器总行程";
+            this.labelTGQTotalTravel.Visible = false;
             // 
             // lineTGQTotalTravel
             // 
@@ -390,10 +427,11 @@ namespace weldDeviceProduct
             this.lineTGQTotalTravel.Size = new System.Drawing.Size(105, 23);
             this.lineTGQTotalTravel.TabIndex = 13;
             this.lineTGQTotalTravel.Value = new decimal(new int[] {
-            500,
+            88935,
             0,
             0,
-            0});
+            131072});
+            this.lineTGQTotalTravel.Visible = false;
             // 
             // labelTGQMesaDist
             // 
@@ -403,6 +441,7 @@ namespace weldDeviceProduct
             this.labelTGQMesaDist.Size = new System.Drawing.Size(140, 17);
             this.labelTGQMesaDist.TabIndex = 12;
             this.labelTGQMesaDist.Text = "调高器下限位距台面距离";
+            this.labelTGQMesaDist.Visible = false;
             // 
             // lineTGQMesaDist
             // 
@@ -419,35 +458,36 @@ namespace weldDeviceProduct
             this.lineTGQMesaDist.Size = new System.Drawing.Size(105, 23);
             this.lineTGQMesaDist.TabIndex = 11;
             this.lineTGQMesaDist.Value = new decimal(new int[] {
-            200,
+            16271,
             0,
             0,
-            0});
+            131072});
+            this.lineTGQMesaDist.Visible = false;
             // 
             // textEndPos
             // 
             this.textEndPos.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.textEndPos.ForeColor = System.Drawing.SystemColors.Control;
-            this.textEndPos.Location = new System.Drawing.Point(210, 165);
+            this.textEndPos.Location = new System.Drawing.Point(204, 165);
             this.textEndPos.Name = "textEndPos";
             this.textEndPos.ReadOnly = true;
-            this.textEndPos.Size = new System.Drawing.Size(54, 23);
+            this.textEndPos.Size = new System.Drawing.Size(60, 23);
             this.textEndPos.TabIndex = 10;
             // 
             // textStartPos
             // 
             this.textStartPos.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
             this.textStartPos.ForeColor = System.Drawing.SystemColors.Control;
-            this.textStartPos.Location = new System.Drawing.Point(75, 165);
+            this.textStartPos.Location = new System.Drawing.Point(74, 165);
             this.textStartPos.Name = "textStartPos";
             this.textStartPos.ReadOnly = true;
-            this.textStartPos.Size = new System.Drawing.Size(63, 23);
+            this.textStartPos.Size = new System.Drawing.Size(60, 23);
             this.textStartPos.TabIndex = 9;
             // 
             // labelEndPos
             // 
             this.labelEndPos.AutoSize = true;
-            this.labelEndPos.Location = new System.Drawing.Point(139, 168);
+            this.labelEndPos.Location = new System.Drawing.Point(136, 168);
             this.labelEndPos.Name = "labelEndPos";
             this.labelEndPos.Size = new System.Drawing.Size(68, 17);
             this.labelEndPos.TabIndex = 8;
@@ -485,11 +525,6 @@ namespace weldDeviceProduct
             this.lineActualDist.Name = "lineActualDist";
             this.lineActualDist.Size = new System.Drawing.Size(105, 23);
             this.lineActualDist.TabIndex = 3;
-            this.lineActualDist.Value = new decimal(new int[] {
-            40,
-            0,
-            0,
-            0});
             // 
             // lableOptViewDist
             // 
@@ -515,6 +550,31 @@ namespace weldDeviceProduct
             this.lineOptViewDist.Size = new System.Drawing.Size(105, 23);
             this.lineOptViewDist.TabIndex = 0;
             // 
+            // menuStrip1
+            // 
+            this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.高级设置ToolStripMenuItem});
+            this.menuStrip1.Location = new System.Drawing.Point(0, 0);
+            this.menuStrip1.Name = "menuStrip1";
+            this.menuStrip1.Size = new System.Drawing.Size(300, 25);
+            this.menuStrip1.TabIndex = 18;
+            this.menuStrip1.Text = "menuStrip1";
+            // 
+            // 高级设置ToolStripMenuItem
+            // 
+            this.高级设置ToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.menuExpertMode});
+            this.高级设置ToolStripMenuItem.Name = "高级设置ToolStripMenuItem";
+            this.高级设置ToolStripMenuItem.Size = new System.Drawing.Size(68, 21);
+            this.高级设置ToolStripMenuItem.Text = "高级设置";
+            // 
+            // menuExpertMode
+            // 
+            this.menuExpertMode.Name = "menuExpertMode";
+            this.menuExpertMode.Size = new System.Drawing.Size(124, 22);
+            this.menuExpertMode.Text = "专家模式";
+            this.menuExpertMode.Click += new System.EventHandler(this.menuExpertMode_Click);
+            // 
             // pnlMainFrom
             // 
             this.pnlMainFrom.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -524,30 +584,6 @@ namespace weldDeviceProduct
             this.pnlMainFrom.TabIndex = 1;
             this.pnlMainFrom.SizeChanged += new System.EventHandler(this.pnlMainFrom_SizeChanged);
             // 
-            // labelTGQSensorDist
-            // 
-            this.labelTGQSensorDist.AutoSize = true;
-            this.labelTGQSensorDist.Location = new System.Drawing.Point(6, 79);
-            this.labelTGQSensorDist.Name = "labelTGQSensorDist";
-            this.labelTGQSensorDist.Size = new System.Drawing.Size(140, 17);
-            this.labelTGQSensorDist.TabIndex = 16;
-            this.labelTGQSensorDist.Text = "调高器当前距寻缝器距离";
-            // 
-            // lineTGQSensorDist
-            // 
-            this.lineTGQSensorDist.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
-            this.lineTGQSensorDist.DecimalPlaces = 2;
-            this.lineTGQSensorDist.ForeColor = System.Drawing.SystemColors.Control;
-            this.lineTGQSensorDist.Location = new System.Drawing.Point(159, 77);
-            this.lineTGQSensorDist.Maximum = new decimal(new int[] {
-            10000,
-            0,
-            0,
-            0});
-            this.lineTGQSensorDist.Name = "lineTGQSensorDist";
-            this.lineTGQSensorDist.Size = new System.Drawing.Size(105, 23);
-            this.lineTGQSensorDist.TabIndex = 15;
-            // 
             // frmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 17F);
@@ -556,6 +592,7 @@ namespace weldDeviceProduct
             this.ClientSize = new System.Drawing.Size(1221, 831);
             this.Controls.Add(this.pnlMainFrom);
             this.Controls.Add(this.pnlOperator);
+            this.MainMenuStrip = this.menuStrip1;
             this.Name = "frmMain";
             this.Text = "AutoInterParaCaliForm";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
@@ -571,11 +608,13 @@ namespace weldDeviceProduct
             this.groupBox1.PerformLayout();
             this.groupBoxGlobalPara.ResumeLayout(false);
             this.groupBoxGlobalPara.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.lineTGQSensorDist)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineTGQTotalTravel)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineTGQMesaDist)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineActualDist)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.lineOptViewDist)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.lineTGQSensorDist)).EndInit();
+            this.menuStrip1.ResumeLayout(false);
+            this.menuStrip1.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -621,6 +660,9 @@ namespace weldDeviceProduct
         private System.Windows.Forms.Button btnBanDisplaySomeLog;
         private System.Windows.Forms.Label labelTGQSensorDist;
         private System.Windows.Forms.NumericUpDown lineTGQSensorDist;
+        private System.Windows.Forms.MenuStrip menuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem 高级设置ToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem menuExpertMode;
     }
 }
 

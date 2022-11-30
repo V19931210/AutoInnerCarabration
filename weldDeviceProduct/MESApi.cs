@@ -88,7 +88,7 @@ namespace weldDeviceProduct
             HttpWebRequest webReq = (HttpWebRequest)WebRequest.Create(url);
             webReq.Method = method;
             webReq.Proxy = null;
-            webReq.Timeout = 1000;
+            webReq.Timeout = 3000;
             webReq.Accept = "*/*";
             webReq.ContentType = "application/json";
             webReq.Headers.Add(HttpRequestHeader.AcceptLanguage, "zh-CN");

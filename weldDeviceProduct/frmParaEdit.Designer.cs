@@ -82,8 +82,8 @@ namespace weldDeviceProduct
             this.label17 = new System.Windows.Forms.Label();
             this.textWorkstationCode = new System.Windows.Forms.TextBox();
             this.textOperationCode = new System.Windows.Forms.TextBox();
-            this.label18 = new System.Windows.Forms.Label();
-            this.label19 = new System.Windows.Forms.Label();
+            this.labelWorkstationCode = new System.Windows.Forms.Label();
+            this.labelOperationCode = new System.Windows.Forms.Label();
             this.groupBox1.SuspendLayout();
             this.groupBox2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.lineRightToLaserDist)).BeginInit();
@@ -120,6 +120,7 @@ namespace weldDeviceProduct
             // cbbDeviceType
             // 
             this.cbbDeviceType.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.cbbDeviceType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cbbDeviceType.ForeColor = System.Drawing.SystemColors.Control;
             this.cbbDeviceType.FormattingEnabled = true;
             this.cbbDeviceType.Items.AddRange(new object[] {
@@ -726,8 +727,8 @@ namespace weldDeviceProduct
             this.groupBox4.Controls.Add(this.textWorkstationCode);
             this.groupBox4.Controls.Add(this.textOperationCode);
             this.groupBox4.Controls.Add(this.label3);
-            this.groupBox4.Controls.Add(this.label18);
-            this.groupBox4.Controls.Add(this.label19);
+            this.groupBox4.Controls.Add(this.labelWorkstationCode);
+            this.groupBox4.Controls.Add(this.labelOperationCode);
             this.groupBox4.ForeColor = System.Drawing.SystemColors.Control;
             this.groupBox4.Location = new System.Drawing.Point(366, 101);
             this.groupBox4.Name = "groupBox4";
@@ -739,6 +740,7 @@ namespace weldDeviceProduct
             // cbbMESPort
             // 
             this.cbbMESPort.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.cbbMESPort.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cbbMESPort.ForeColor = System.Drawing.SystemColors.Control;
             this.cbbMESPort.FormattingEnabled = true;
             this.cbbMESPort.Items.AddRange(new object[] {
@@ -763,6 +765,7 @@ namespace weldDeviceProduct
             // cbbResult
             // 
             this.cbbResult.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.cbbResult.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cbbResult.ForeColor = System.Drawing.SystemColors.Control;
             this.cbbResult.FormattingEnabled = true;
             this.cbbResult.Items.AddRange(new object[] {
@@ -778,7 +781,6 @@ namespace weldDeviceProduct
             // textNGRemark
             // 
             this.textNGRemark.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
-            this.textNGRemark.Enabled = false;
             this.textNGRemark.ForeColor = System.Drawing.SystemColors.Control;
             this.textNGRemark.Location = new System.Drawing.Point(135, 225);
             this.textNGRemark.MaxLength = 400;
@@ -790,7 +792,6 @@ namespace weldDeviceProduct
             // labeNGRemark
             // 
             this.labeNGRemark.AutoSize = true;
-            this.labeNGRemark.Enabled = false;
             this.labeNGRemark.Location = new System.Drawing.Point(19, 228);
             this.labeNGRemark.Name = "labeNGRemark";
             this.labeNGRemark.Size = new System.Drawing.Size(63, 17);
@@ -874,6 +875,7 @@ namespace weldDeviceProduct
             this.textWorkstationCode.TabIndex = 4;
             this.textWorkstationCode.Text = "WorkStation11";
             this.textWorkstationCode.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.textWorkstationCode.Visible = false;
             // 
             // textOperationCode
             // 
@@ -883,26 +885,29 @@ namespace weldDeviceProduct
             this.textOperationCode.Name = "textOperationCode";
             this.textOperationCode.Size = new System.Drawing.Size(218, 23);
             this.textOperationCode.TabIndex = 3;
-            this.textOperationCode.Text = "Process04";
+            this.textOperationCode.Text = "Process13";
             this.textOperationCode.TextAlign = System.Windows.Forms.HorizontalAlignment.Right;
+            this.textOperationCode.Visible = false;
             // 
-            // label18
+            // labelWorkstationCode
             // 
-            this.label18.AutoSize = true;
-            this.label18.Location = new System.Drawing.Point(19, 83);
-            this.label18.Name = "label18";
-            this.label18.Size = new System.Drawing.Size(56, 17);
-            this.label18.TabIndex = 2;
-            this.label18.Text = "工站号：";
+            this.labelWorkstationCode.AutoSize = true;
+            this.labelWorkstationCode.Location = new System.Drawing.Point(19, 83);
+            this.labelWorkstationCode.Name = "labelWorkstationCode";
+            this.labelWorkstationCode.Size = new System.Drawing.Size(56, 17);
+            this.labelWorkstationCode.TabIndex = 2;
+            this.labelWorkstationCode.Text = "工站号：";
+            this.labelWorkstationCode.Visible = false;
             // 
-            // label19
+            // labelOperationCode
             // 
-            this.label19.AutoSize = true;
-            this.label19.Location = new System.Drawing.Point(19, 54);
-            this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(56, 17);
-            this.label19.TabIndex = 0;
-            this.label19.Text = "工序号：";
+            this.labelOperationCode.AutoSize = true;
+            this.labelOperationCode.Location = new System.Drawing.Point(19, 54);
+            this.labelOperationCode.Name = "labelOperationCode";
+            this.labelOperationCode.Size = new System.Drawing.Size(56, 17);
+            this.labelOperationCode.TabIndex = 0;
+            this.labelOperationCode.Text = "工序号：";
+            this.labelOperationCode.Visible = false;
             // 
             // frmParaEdit
             // 
@@ -983,10 +988,6 @@ namespace weldDeviceProduct
         private System.Windows.Forms.ComboBox cbbDeviceType;
         private System.Windows.Forms.Button btnUploadToMES;
         private System.Windows.Forms.GroupBox groupBox4;
-        private System.Windows.Forms.TextBox textWorkstationCode;
-        private System.Windows.Forms.TextBox textOperationCode;
-        private System.Windows.Forms.Label label18;
-        private System.Windows.Forms.Label label19;
         private System.Windows.Forms.TextBox textNGRemark;
         private System.Windows.Forms.Label labeNGRemark;
         private System.Windows.Forms.Label label22;
@@ -999,5 +1000,9 @@ namespace weldDeviceProduct
         private System.Windows.Forms.ComboBox cbbResult;
         private System.Windows.Forms.ComboBox cbbMESPort;
         private System.Windows.Forms.Label label23;
+        public System.Windows.Forms.TextBox textWorkstationCode;
+        public System.Windows.Forms.TextBox textOperationCode;
+        public System.Windows.Forms.Label labelWorkstationCode;
+        public System.Windows.Forms.Label labelOperationCode;
     }
 }

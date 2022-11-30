@@ -17,6 +17,7 @@ namespace weldDeviceProduct
         private static readonly Mutex mutex = new Mutex();//多线程情况下保证线程安全
 
         private static frmParaEdit frm2;//参数编辑界面
+        private static frmExpert frm3;//专家模式验证密码界面
 
         //WeldTrack和BCS100
         private Process proWeldTrack;
@@ -138,6 +139,7 @@ namespace weldDeviceProduct
                 errorVerifyPoints[i] = new double[5];
             }
             frm2 = new frmParaEdit(this);
+            frm3 = new frmExpert();
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -239,7 +241,6 @@ namespace weldDeviceProduct
             setParamBool("NeedPrintPlateWeldInfo", true);
             openCloseLaser();//打开激光
             cbbLaserHoldSpacePercent.SelectedIndex = 0;//设置默认激光占空比100%
-
             //tttest();
         }
 
@@ -733,7 +734,7 @@ namespace weldDeviceProduct
             {
                 if (start_time == null)
                 {
-                    Thread.Sleep(2000);
+                    Thread.Sleep(1000);
                     start_time = getServerTime();
                 }
                 else
@@ -898,7 +899,7 @@ namespace weldDeviceProduct
                 {
                     if (end_time == null)
                     {
-                        Thread.Sleep(2000);
+                        Thread.Sleep(1000);
                         end_time = getServerTime();
                     }
                     else
@@ -917,11 +918,6 @@ namespace weldDeviceProduct
 
         private bool isCaliParaAllRight()
         {
-            if (lineOptViewDist.Text == "" || lineOptViewDist.Value.Equals(0))
-            {
-                AddLogWithTime("未输入最佳视距或值为0!");
-                return false;
-            }
             if (lineActualDist.Text == "" || lineActualDist.Value.Equals(0))
             {
                 AddLogWithTime("未输入角点实际宽度或值为0!");
@@ -1122,6 +1118,17 @@ namespace weldDeviceProduct
             AddLogWithTime("开始误差验证");
 
             bool isCaliDone = true;//3组误差验证过程是否全部完成
+            errorDetail = "";
+
+            ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.GetMechanicPara, ref frmMain.id);
+            ModelWeldTrack resp = new ModelWeldTrack();
+            if (!sendSensor(req, ref resp))
+            {
+                isCaliDone = false;
+                goto Label;
+            }
+            string sn = resp.SN;
+            errorDetail += $"SN:{sn}\r\n";
 
             //计算调高器步进距离
             double endPos = Convert.ToDouble(textEndPos.Text.ToString());
@@ -1156,7 +1163,6 @@ namespace weldDeviceProduct
 
             //获取3组数据
             int cnt = errorVerifyPoints.Length;
-            errorDetail = "";
             while (isErrorChecking && cnt-- > 0)
             {
                 //控制调高器移动到errorVerifyPoints[cnt]
@@ -1399,7 +1405,55 @@ namespace weldDeviceProduct
         public void AddLog(string str)
         {
             Log.AppendText(str + "\r\n");
+
         }
 
+        private void menuExpertMode_Click(object sender, EventArgs e)
+        {
+            if (menuExpertMode.Checked)
+            {
+                menuExpertMode.Checked = false;
+                labelTGQTotalTravel.Visible = false;
+                labelTGQMesaDist.Visible = false;
+                labelTGQSensorDist.Visible = false;
+                lineTGQTotalTravel.Visible = false;
+                lineTGQMesaDist.Visible = false;
+                lineTGQSensorDist.Visible = false;
+                frm2.labelOperationCode.Visible = false;
+                frm2.labelWorkstationCode.Visible = false;
+                frm2.textOperationCode.Visible = false;
+                frm2.textWorkstationCode.Visible = false;
+            }
+            else
+            {
+                //输入密码
+                frm3.ShowDialog();
+
+                if (frm3.DialogResult == DialogResult.OK)
+                {
+                    menuExpertMode.Checked = true;
+                    menuExpertMode.Checked = true;
+                    labelTGQTotalTravel.Visible = true;
+                    labelTGQMesaDist.Visible = true;
+                    labelTGQSensorDist.Visible = true;
+                    lineTGQTotalTravel.Visible = true;
+                    lineTGQMesaDist.Visible = true;
+                    lineTGQSensorDist.Visible = true;
+                    frm2.labelOperationCode.Visible = true;
+                    frm2.labelWorkstationCode.Visible = true;
+                    frm2.textOperationCode.Visible = true;
+                    frm2.textWorkstationCode.Visible = true;
+                }
+                else if (frm3.DialogResult == DialogResult.Retry)
+                {
+                    MessageBox.Show("密码错误!");
+                }
+                else if (frm3.DialogResult == DialogResult.Cancel)
+                {
+                    frm3.Close();
+                }
+
+            }
+        }
     }
 }

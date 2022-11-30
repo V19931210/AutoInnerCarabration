@@ -61,7 +61,7 @@
         SetDetectArea,//设置检测区域
         GetCurCoordinate,//获取当前识别的像素坐标
         CalInterMat,//计算内参矩阵
-        WriteParaToVision,//写入机械参数到寻缝器
+        WriteMechanicPara,//写入机械参数到寻缝器
         GetImageSize,//获取图像尺寸
         SetCurTemplateID,//设置当前模板ID
         SetLaserDutyCircle,//设置激光占空比
@@ -71,6 +71,8 @@
         StopPointCloud,//线扫寻位：结束点云采集	
         GetStartEndPoint,//线扫寻位：返回起点/端点信息	
         SetMapPara,//设置底层MAP参数	
+        LineFit,//直线拟合
+        GetMechanicPara,//获取寻缝器机械参数
     }
 
     public struct ModelHeightAdjust
