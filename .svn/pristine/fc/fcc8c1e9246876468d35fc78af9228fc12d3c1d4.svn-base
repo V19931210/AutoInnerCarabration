@@ -1,0 +1,129 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+
+namespace weldDeviceProduct
+{
+    public partial class Form1 : Form
+    {
+        private IntPtr weldFormHandle = new IntPtr(0);
+        public Form1()
+        {
+            InitializeComponent();
+
+            timerUpdateFrm.Tick += new EventHandler(timerUpdateFrm_Tick);  //绑定事件
+            timerUpdateFrm.Interval = 200;
+        }
+
+        [DllImport("USER32.DLL")]
+        public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll ", EntryPoint = "SetParent")]
+        private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);   //将外部窗体嵌入程序
+
+        [DllImport("user32.dll", EntryPoint = "ShowWindow", CharSet = CharSet.Auto)]
+        private static extern int ShowWindow(IntPtr hwnd, int nCmdShow);                  //设置窗体属性
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLong", CharSet = CharSet.Auto)]
+        public static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, long dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLong", CharSet = CharSet.Auto)]
+        public static extern long GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+
+        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+        /// <summary>
+        /// 去除窗体边框
+        /// </summary>
+        /// <param name="vHandle">窗口句柄</param>
+        public static void RemoveWindowBorder(IntPtr vHandle)
+        {
+            const int GWL_STYLE = (-16);
+            const int WS_CAPTION = 0xC00000;
+            const int WS_BORDER = 0x800000;
+            const int WS_THICKFRAME = 0x00040000;
+            const int WS_CHILDWINDOW = 0x40000000;
+
+            long LStyle = GetWindowLong(vHandle, GWL_STYLE);
+
+            LStyle = (LStyle &(~WS_CAPTION) &(~WS_BORDER) &(~WS_THICKFRAME)) | WS_CHILDWINDOW;
+            SetWindowLong(vHandle, GWL_STYLE, LStyle);
+        }
+
+
+        /// <summary>
+        /// 调整第三方应用窗体大小
+        /// </summary>
+        public void ResizeWindow()
+        {
+            ShowWindow(weldFormHandle, 0);  //先将窗口隐藏
+            ShowWindow(weldFormHandle, 3);  //再将窗口最大化，可以让第三方窗口自适应容器的大小
+        }
+
+        void timerUpdateFrm_Tick(object sender, EventArgs e)
+        {
+            //第三方窗体句柄不为空
+            if (weldFormHandle != IntPtr.Zero)
+            {
+                System.Threading.Thread t = new System.Threading.Thread(ResizeWindow);
+                t.Start();  //开线程刷新第三方窗体大小
+                System.Threading.Thread.Sleep(50); //略加延时
+                timerUpdateFrm.Stop();  //停止定时器
+            }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            //打开BCVWeldTrack.exe
+            Process myPro = new Process();
+            myPro.StartInfo.FileName = "C:\\Program Files (x86)\\Friendess\\BCVWeldTrack\\BCVWeldTrack.exe";
+            myPro.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            myPro.Start();
+
+            //查找exe主窗口窗口句柄
+            for (int i = 0; i < 30; i++)
+            {
+                weldFormHandle = FindWindow(null, "BCVWeldTrackMainForm");
+                if (weldFormHandle != IntPtr.Zero)
+                {
+                    //MessageBox.Show("Find BCVWeldTrackMainForm!");
+                    break;
+
+                }
+                else
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+
+            if (weldFormHandle == IntPtr.Zero)
+            {
+                MessageBox.Show("not Find BCVWeldTrackMainForm!");
+            }
+
+            RemoveWindowBorder(weldFormHandle);  //移除边框
+            SetParent(weldFormHandle, pnlMainFrom.Handle); //嵌入父容器
+            ShowWindowAsync(weldFormHandle, 3);   //显示
+
+        }
+        private void Form1_SizeChanged(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void pnlMainFrom_SizeChanged(object sender, EventArgs e)
+        {
+            timerUpdateFrm.Start();
+        }
+    }
+}

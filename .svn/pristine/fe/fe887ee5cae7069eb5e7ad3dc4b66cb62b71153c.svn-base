@@ -1,0 +1,1512 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Net.Sockets;
+using System.Threading;
+using System.Net;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.IO;
+using Microsoft.Win32;
+
+namespace weldDeviceProduct
+{
+
+    public partial class Form1 : Form
+    {
+        private static readonly Mutex mutex = new Mutex();//多线程情况下保证线程安全
+
+        private Form2 frm2;//参数编辑界面
+
+        //WeldTrack和BCS100
+        private Process proWeldTrack;
+        private IntPtr weldFormHandle = new IntPtr(0);
+        private long mInitialWindowLong;
+        private Process proBCS100;
+
+        public static Socket sensorSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        public static Socket heightSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+        public static int id = 1000;//用于给寻缝器发指令的id
+        public static JsonSerializerSettings jsonSetting = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };//忽略结构体空值字段
+
+        private double optViewDist;//记录最佳视距
+        private double actualDist;//记录角点实际宽度
+        private double[][] cornerPoints;//记录采集的标定数据
+        private bool isCaliing = false;//标记是否处于自动标定过程中
+        private bool isGettingHeight = false;//标记是否处于获取调高器高度过程中
+
+        private bool isErrorChecking = false;//标记是否处于误差验证过程中
+        private double[][] errorVerifyPoints;//记录采集的误差验证数据
+
+        private const int GWL_STYLE = (-16);
+        private const long WS_CAPTION = 0xC00000;
+        private const long WS_BORDER = 0x800000;
+        private const long WS_THICKFRAME = 0x00040000;
+        private const long WS_CHILDWINDOW = 0x40000000;
+        private const uint WM_SYSCOMMAND = 0x0112;
+        private const uint SC_CLOSE = 0xF060;
+
+        [DllImport("USER32.DLL")]
+        public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll ", EntryPoint = "SetParent")]
+        private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);   //将外部窗体嵌入程序
+
+        [DllImport("user32.dll", EntryPoint = "ShowWindow", CharSet = CharSet.Auto)]
+        private static extern int ShowWindow(IntPtr hwnd, int nCmdShow);                  //设置窗体属性
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLong", CharSet = CharSet.Auto)]
+        public static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, long dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLong", CharSet = CharSet.Auto)]
+        public static extern long GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+
+        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll", EntryPoint = "PostMessage")]
+        private static extern bool PostMessage(IntPtr hWnd, uint msg, uint wParam, uint lParam);
+
+        /// <summary>
+        /// 去除窗体边框
+        /// </summary>
+        /// <param name="vHandle">窗口句柄</param>
+        public static void RemoveWindowBorder(IntPtr vHandle)
+        {
+            const int GWL_STYLE = (-16);
+            const int WS_CAPTION = 0xC00000;
+            const int WS_BORDER = 0x800000;
+            const int WS_THICKFRAME = 0x00040000;
+            const int WS_CHILDWINDOW = 0x40000000;
+
+            long LStyle = GetWindowLong(vHandle, GWL_STYLE);
+
+            LStyle = (LStyle & (~WS_CAPTION) & (~WS_BORDER) & (~WS_THICKFRAME)) | WS_CHILDWINDOW;
+            SetWindowLong(vHandle, GWL_STYLE, LStyle);
+        }
+
+        /// <summary>
+        /// 调整第三方应用窗体大小
+        /// </summary>
+        public void ResizeWindow()
+        {
+            ShowWindow(weldFormHandle, 0);  //先将窗口隐藏
+            ShowWindow(weldFormHandle, 3);  //再将窗口最大化，可以让第三方窗口自适应容器的大小
+        }
+
+        void timerUpdateFrm_Tick(object sender, EventArgs e)
+        {
+            //第三方窗体句柄不为空
+            if (weldFormHandle != IntPtr.Zero)
+            {
+                System.Threading.Thread t = new System.Threading.Thread(ResizeWindow);
+                t.Start();  //开线程刷新第三方窗体大小
+                System.Threading.Thread.Sleep(50); //略加延时
+                timerUpdateFrm.Stop();  //停止定时器
+            }
+        }
+
+        public Form1()
+        {
+            InitializeComponent();
+            Control.CheckForIllegalCrossThreadCalls = false;
+
+            timerUpdateFrm.Tick += new EventHandler(timerUpdateFrm_Tick);  //绑定事件
+            timerUpdateFrm.Interval = 200;
+
+            frm2 = new Form2();
+
+            //设置超时时间
+            sensorSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 2000);
+            heightSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 5000);
+
+            cornerPoints = new double[10][];
+            for (int i = 0; i < cornerPoints.Length; i++)
+            {
+                cornerPoints[i] = new double[5];
+            }
+
+            errorVerifyPoints = new double[3][];
+            for (int i = 0; i < errorVerifyPoints.Length; i++)
+            {
+                errorVerifyPoints[i] = new double[5];
+            }
+
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            //打开BCVWeldTrack.exe
+            Process[] proWeldTrackArr = Process.GetProcessesByName("BCVWeldTrack");
+            if (proWeldTrackArr.Length > 0)
+            {
+                proWeldTrack = proWeldTrackArr[0];
+            }
+            else
+            {
+                try
+                {
+                    proWeldTrack = new Process();
+                    proWeldTrack.StartInfo.FileName = "C:\\Program Files (x86)\\Friendess\\BCVWeldTrack\\BCVWeldTrack.exe";
+                    proWeldTrack.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                    proWeldTrack.Start();
+                }
+                catch (Exception ex)
+                {
+                    Log.AppendText(System.DateTime.Now + "：启动寻缝器软件失败！\r\n");
+                    MessageBox.Show(ex.Message);
+                }
+            }
+
+            //查找BCVWeldTrack.exe主窗口窗口句柄
+            for (int i = 0; i < 30; i++)
+            {
+                weldFormHandle = FindWindow(null, "BCVWeldTrackMainForm");
+                if (weldFormHandle != IntPtr.Zero)
+                {
+                    //MessageBox.Show("Find BCVWeldTrackMainForm!");
+                    mInitialWindowLong = GetWindowLong(weldFormHandle, GWL_STYLE);
+                    break;
+                }
+                else
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+
+            if (weldFormHandle == IntPtr.Zero)
+            {
+                MessageBox.Show("Not Find BCVWeldTrackMainForm!");
+            }
+
+            RemoveWindowBorder(weldFormHandle);  //移除边框
+            SetParent(weldFormHandle, pnlMainFrom.Handle); //嵌入父容器
+            ShowWindowAsync(weldFormHandle, 3);   //显示
+
+            //打开BCS100APP.exe
+            Process[] proBCS100Arr = Process.GetProcessesByName("BCS100APP");
+            if (proBCS100Arr.Length > 0)
+            {
+                proBCS100 = proBCS100Arr[0];
+            }
+            else
+            {
+                try
+                {
+                    proBCS100 = new Process();
+                    proBCS100.StartInfo.FileName = "C:\\Program Files (x86)\\Friendess\\BCVWeldTrack\\BCS100APP.exe";
+                    proBCS100.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Normal;
+                    proBCS100.Start();
+                }
+                catch (Exception ex)
+                {
+                    Log.AppendText(System.DateTime.Now + "：启动调高器测试软件失败！\r\n");
+                    MessageBox.Show(ex.Message);
+                }
+            }
+
+            //连接寻缝器软件
+            try
+            {
+                sensorSocket.Connect(new IPEndPoint(IPAddress.Parse("127.0.0.1"), 5020));
+            }
+            catch (Exception ex)
+            {
+                Log.AppendText(System.DateTime.Now + "：连接寻缝器失败！\r\n");
+                MessageBox.Show(ex.Message);
+            }
+
+            //连接调高器软件
+            try
+            {
+                heightSocket.Connect(new IPEndPoint(IPAddress.Parse("127.0.0.1"), 60001));
+            }
+            catch (Exception ex)
+            {
+                Log.AppendText(System.DateTime.Now + "：连接调高器测试软件失败！\r\n");
+                MessageBox.Show(ex.Message);
+            }
+
+            openCloseLaser();//打开激光
+            closeTimeStamp();//关闭时间戳对比
+            cbbLaserHoldSpacePercent.SelectedIndex = 0;//设置默认激光占空比100%
+        }
+
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            Thread.Sleep(100);
+
+            //关闭激光
+            openCloseLaser();
+
+            sensorSocket.Close();
+            heightSocket.Close();
+
+            Process[] proWeldTrackArr = Process.GetProcessesByName("BCVWeldTrack");
+            if (proWeldTrackArr.Length > 0)
+            {
+                SetWindowLong(weldFormHandle, GWL_STYLE, (uint)mInitialWindowLong);
+                SetParent(weldFormHandle, IntPtr.Zero);
+                PostMessage(weldFormHandle, WM_SYSCOMMAND, SC_CLOSE, 0);
+                weldFormHandle = IntPtr.Zero;
+
+                //proWeldTrackArr[0].Kill();
+            }
+
+            Process[] proBCS100Arr = Process.GetProcessesByName("BCS100APP");
+            if (proBCS100Arr.Length > 0)
+            {
+                proBCS100Arr[0].Kill();
+            }
+
+        }
+
+        private void pnlMainFrom_SizeChanged(object sender, EventArgs e)
+        {
+            timerUpdateFrm.Start();
+        }
+
+        //给寻缝器发指令
+        public static bool sendCmdToSensor(ModelWeldTrack req, ref ModelWeldTrack resp)
+        {
+            id++;
+            string sensor_input = JsonConvert.SerializeObject(req, jsonSetting);
+            byte[] sensor_send_buf = Encoding.UTF8.GetBytes(sensor_input + "#Vision");
+            sensorSocket.Send(sensor_send_buf);
+            Console.WriteLine(sensor_input);
+
+            byte[] sensor_recv_buf = new byte[1024];
+            int len = sensorSocket.Receive(sensor_recv_buf);
+
+            if (len > 0)
+            {
+                string msg = Encoding.UTF8.GetString(sensor_recv_buf);
+                string[] jsonStrings = msg.Split('#');
+                resp = JsonConvert.DeserializeObject<ModelWeldTrack>(jsonStrings[0]);
+                Console.WriteLine(msg);
+                return true;
+            }
+
+            return false;
+        }
+
+        //给调高器发指令
+        private static bool sendCmdToHeight(ModelHeightAdjust req, ref ModelHeightAdjust resp)
+        {
+            string height_input = JsonConvert.SerializeObject(req, jsonSetting);
+            byte[] hright_send_buf = Encoding.UTF8.GetBytes(height_input + "#Height");
+            heightSocket.Send(hright_send_buf);
+            //Console.WriteLine(height_input);
+
+            byte[] height_recv_buf = new byte[1024];
+            int len = heightSocket.Receive(height_recv_buf);
+
+            if (len > 0)
+            {
+                string msg = Encoding.UTF8.GetString(height_recv_buf);
+                string[] jsonStrings = msg.Split('#');
+                resp = JsonConvert.DeserializeObject<ModelHeightAdjust>(jsonStrings[0]);
+                //Console.WriteLine(msg);
+                return true;
+            }
+
+            return false;
+        }
+
+        private void btnOpenCloseLaser_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(openCloseLaser);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void openCloseLaser()
+        {
+            ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.SwitchLaserStatus, ref id);
+            ModelWeldTrack resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCmdToSensor(req, ref resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送打开/关闭激光指令失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送打开/关闭激光指令成功\r\n");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+
+        }
+
+        private void closeTimeStamp()
+        {
+            ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.SetMapPara, ref id) { Key = "DisplayTimeStampCheck", Value = false };
+            ModelWeldTrack resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCmdToSensor(req, ref resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送关闭时间戳指令失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送关闭时间戳指令成功\r\n");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+
+        }
+
+        private void cbbLaserHoldSpacePercent_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            Thread t = new Thread(setLaserHoldSpacePercent);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void setLaserHoldSpacePercent()
+        {
+            int dutyCycle = Convert.ToInt32(cbbLaserHoldSpacePercent.SelectedItem);
+            ModelWeldTrack req = new ModelWeldTrack(WeldTrackCMD.SetLaserDutyCircle, ref id) { DutyCycle = dutyCycle };
+            ModelWeldTrack resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCmdToSensor(req, ref resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送设置激光占空比指令失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    Log.AppendText(System.DateTime.Now + "：发送设置激光占空比指令成功\r\n");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+        }
+
+        private void btnReadOptViewDist_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(readOptViewDist);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void readOptViewDist()
+        {
+            mutex.WaitOne();
+            if (isGettingHeight)
+            {
+                mutex.ReleaseMutex();
+                MessageBox.Show("获取调高器高度正在进行，请勿重复点击！");
+                return;
+            }
+            isGettingHeight = true;
+            mutex.ReleaseMutex();
+
+            ModelHeightAdjust req = new ModelHeightAdjust(HeightAdjustState.HeightGet);
+            ModelHeightAdjust resp = new ModelHeightAdjust();
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    if (!sendCmdToHeight(req, ref resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：未接收到调高器返回数据！\r\n");
+                        break;
+                    }
+
+                    if (resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：连接调高器失败！\r\n");
+                        break;
+                    }
+                    else
+                    {
+                        double H = (double)lineTGQTotalTravel.Value;
+                        double h = (double)lineTGQMesaDist.Value;
+                        lineOptViewDist.Value = Convert.ToDecimal(H + h - resp.Zpos);
+                        break;
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.TimedOut)
+                    {
+
+                        Log.AppendText(System.DateTime.Now + "：第" + (i + 1) + "次获取调高器高度超时!\r\n");
+                        Thread.Sleep(500);
+                        continue;
+                    }
+                    else
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+            }
+
+            mutex.WaitOne();
+            isGettingHeight = false;
+            mutex.ReleaseMutex();
+
+        }
+
+        private void btnReadStartPoint_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(readStartPoint);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void readStartPoint()
+        {
+            mutex.WaitOne();
+            if (isGettingHeight)
+            {
+                mutex.ReleaseMutex();
+                MessageBox.Show("获取调高器高度正在进行，请勿重复点击！");
+                return;
+            }
+            isGettingHeight = true;
+            mutex.ReleaseMutex();
+
+            ModelHeightAdjust req = new ModelHeightAdjust(HeightAdjustState.HeightGet);
+            ModelHeightAdjust resp = new ModelHeightAdjust();
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    if (!sendCmdToHeight(req, ref resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：未接收到调高器返回数据！\r\n");
+                        break;
+                    }
+
+                    if (resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：连接调高器失败！\r\n");
+                        break;
+                    }
+                    else
+                    {
+                        textStartPos.Text = resp.Zpos.ToString();
+                        btnReadEndPoint.Enabled = true;
+                        break;
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.TimedOut)
+                    {
+
+                        Log.AppendText(System.DateTime.Now + "：第" + (i + 1) + "次获取调高器高度超时!\r\n");
+                        Thread.Sleep(500);
+                        continue;
+                    }
+                    else
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+            }
+
+            mutex.WaitOne();
+            isGettingHeight = false;
+            mutex.ReleaseMutex();
+
+        }
+
+        private void btnReadEndPoint_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(readEndPoint);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void readEndPoint()
+        {
+            mutex.WaitOne();
+            if (isGettingHeight)
+            {
+                mutex.ReleaseMutex();
+                MessageBox.Show("获取调高器高度正在进行，请勿重复点击！");
+                return;
+            }
+            isGettingHeight = true;
+            mutex.ReleaseMutex();
+
+            ModelHeightAdjust req = new ModelHeightAdjust(HeightAdjustState.HeightGet);
+            ModelHeightAdjust resp = new ModelHeightAdjust();
+            for (int i = 0; i < 5; i++)
+            {
+                try
+                {
+                    if (!sendCmdToHeight(req, ref resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：未接收到调高器返回数据！\r\n");
+                        break;
+                    }
+
+                    if (resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：连接调高器失败！\r\n");
+                        break;
+                    }
+                    else
+                    {
+                        textEndPos.Text = resp.Zpos.ToString();
+                        btnAutoInterParaCali.Enabled = true;
+                        break;
+                    }
+                }
+                catch (SocketException ex)
+                {
+                    if (ex.SocketErrorCode == SocketError.TimedOut)
+                    {
+
+                        Log.AppendText(System.DateTime.Now + "：第" + (i + 1) + "次获取调高器高度超时!\r\n");
+                        Thread.Sleep(500);
+                        continue;
+                    }
+                    else
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+            }
+
+            mutex.WaitOne();
+            isGettingHeight = false;
+            mutex.ReleaseMutex();
+
+        }
+
+        private void btnAutoInterParaCali_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(autoInterParaCali);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void autoInterParaCali()
+        {
+            //test();
+            //验证全局参数合法性
+            if (!isParaAllRight())
+            {
+                return;
+            }
+
+            MessageBoxButtons msgButton = MessageBoxButtons.OKCancel;
+            DialogResult res = MessageBox.Show("请确保图像中仅有两个角点且大致平均分布在左右两侧！！！", "Attention!", msgButton);
+            if (res != DialogResult.OK)
+            {
+                return;
+            }
+
+            mutex.WaitOne();
+            if (isCaliing)
+            {
+                mutex.ReleaseMutex();
+                MessageBox.Show("自动标定正在进行，请勿重复点击！");
+                return;
+            }
+            isCaliing = true;
+            textShowIsCaliing.Text = "正在自动标定中...";
+            mutex.ReleaseMutex();
+
+            Log.AppendText(System.DateTime.Now + "：开始自动标定\r\n");
+
+            //计算调高器步进距离
+            double endPos = Convert.ToDouble(textEndPos.Text.ToString());
+            double startPos = Convert.ToDouble(textStartPos.Text.ToString());
+            double stepDist = (endPos - startPos) / 9;
+
+            //获取图像尺寸 设置左右检测区域范围
+            ModelWeldTrack image_req = new ModelWeldTrack(WeldTrackCMD.GetImageSize, ref id);
+            ModelWeldTrack image_resp = new ModelWeldTrack();
+            ModelWeldTrack detect_left_req = new ModelWeldTrack(WeldTrackCMD.SetDetectArea, ref id);
+            ModelWeldTrack detect_right_req = new ModelWeldTrack(WeldTrackCMD.SetDetectArea, ref id);
+            ModelWeldTrack detect_resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCmdToSensor(image_req, ref image_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (image_resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：获取寻缝器图像尺寸失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    detect_left_req.X = 10;
+                    detect_left_req.Y = 10;
+                    detect_left_req.Width = image_resp.Width / 2 - 20;
+                    detect_left_req.Height = image_resp.Height - 20;
+                    detect_right_req.X = image_resp.Width / 2 + 10;
+                    detect_right_req.Y = 10;
+                    detect_right_req.Width = image_resp.Width / 2 - 20;
+                    detect_right_req.Height = image_resp.Height - 20;
+                    Log.AppendText(System.DateTime.Now + "：获取寻缝器图像尺寸成功\r\n");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+
+            //获取10组数据
+            int cnt = cornerPoints.Length;
+            bool isCaliDone = true;//10组标定过程是否全部完成
+            ModelHeightAdjust prevZ_resp = new ModelHeightAdjust() { Zpos = -10000 };
+            while (isCaliing && cnt-- > 0)
+            {
+                //控制调高器移动到cornerPoint[cnt]
+                cornerPoints[cnt][0] = endPos - stepDist * (9 - cnt);
+                ModelHeightAdjust move_req = new ModelHeightAdjust(HeightAdjustState.HeightMove, cornerPoints[cnt][0]);
+                ModelHeightAdjust move_resp = new ModelHeightAdjust();
+                if (!sendCmdToHeight(move_req, ref move_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到调高器数据，标定终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+                if (move_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定连接调高器失败，标定终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+
+                //稍许等待让调高器运动 然后验证调高器是否到位
+                Thread.Sleep(200);
+
+                ModelHeightAdjust height_req = new ModelHeightAdjust(HeightAdjustState.HeightGet);
+                ModelHeightAdjust curZ_resp = new ModelHeightAdjust();
+                if (!sendCmdToHeight(height_req, ref curZ_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到调高器数据，标定终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+                if (curZ_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定连接调高器失败，标定终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+
+                //判断调高器是否到达指定位置或一直到不了指定位置
+                while (Math.Abs(curZ_resp.Zpos - cornerPoints[cnt][0]) > 0.06)
+                {
+                    Thread.Sleep(200);
+                    if (!sendCmdToHeight(height_req, ref curZ_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到调高器数据，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    if (curZ_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定连接调高器失败，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    if (Math.Abs(curZ_resp.Zpos - prevZ_resp.Zpos) < 0.05)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定调高器无法运动到指定位置，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    prevZ_resp.Zpos = curZ_resp.Zpos;
+                }
+
+                if (!isCaliDone)
+                {
+                    break;
+                }
+
+                //调高器运动到位之后等待1.75s再取角点
+                Thread.Sleep(1750);
+
+                //设置左侧检测区域
+                try
+                {
+                    if (!sendCmdToSensor(detect_left_req, ref detect_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到寻缝器数据，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+
+                    if (detect_resp.Result != "true")
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定设置左侧检测区域失败，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+
+                //设置完检测区域后等待2s再取点
+                Thread.Sleep(2000);
+
+                //获取左侧寻缝器角点坐标
+                bool isGetPoint_left = false;
+                ModelWeldTrack coord_req = new ModelWeldTrack(WeldTrackCMD.GetCurCoordinate, ref id);
+                ModelWeldTrack left_resp = new ModelWeldTrack();
+                for (int j = 0; isCaliing && j < 5; j++)
+                {
+                    try
+                    {
+                        if (!sendCmdToSensor(coord_req, ref left_resp))
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到寻缝器数据，标定终止！\r\n");
+                            isCaliDone = false;
+                            break;
+                        }
+
+                        if (left_resp.Result == "true")
+                        {
+                            isGetPoint_left = true;
+                            break;
+                        }
+                        else
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定第" + (j + 1) + "次未捕获到左侧角点坐标\r\n");
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (j + 1) + "次获取角点超时!\r\n");
+                            Thread.Sleep(500);
+                            continue;
+                        }
+                        else
+                        {
+                            MessageBox.Show(ex.Message);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+
+                }
+
+                if (!isGetPoint_left)
+                {
+                    isCaliDone = false;
+                    break;
+                }
+
+                //设置右侧检测区域
+                try
+                {
+                    if (!sendCmdToSensor(detect_right_req, ref detect_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到寻缝器数据，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+
+                    if (detect_resp.Result != "true")
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定设置右侧检测区域失败，标定终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+
+                //设置完检测区域后等待2s再取点
+                Thread.Sleep(2000);
+
+                //获取右侧寻缝器角点坐标
+                bool isGetPoint_right = false;
+                ModelWeldTrack right_resp = new ModelWeldTrack();
+                for (int j = 0; isCaliing && j < 5; j++)
+                {
+                    try
+                    {
+                        if (!sendCmdToSensor(coord_req, ref right_resp))
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定未接收到寻缝器数据，标定终止！\r\n");
+                            isCaliDone = false;
+                            break;
+                        }
+
+                        if (right_resp.Result == "true")
+                        {
+                            isGetPoint_right = true;
+                            break;
+                        }
+                        else
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定第" + (j + 1) + "次未捕获到右侧角点坐标\r\n");
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+
+                            Log.AppendText(System.DateTime.Now + "：第" + (j + 1) + "次获取角点超时!\r\n");
+                            Thread.Sleep(500);
+                            continue;
+                        }
+                        else
+                        {
+                            MessageBox.Show(ex.Message);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+                }
+
+                if (!isGetPoint_right)
+                {
+                    isCaliDone = false;
+                    break;
+                }
+
+                //保存该组数据
+                cornerPoints[cnt][1] = (double)left_resp.X;
+                cornerPoints[cnt][2] = (double)left_resp.Y;
+                cornerPoints[cnt][3] = (double)right_resp.X;
+                cornerPoints[cnt][4] = (double)right_resp.Y;
+
+                Log.AppendText(System.DateTime.Now + "：第" + (10 - cnt) + "组标定数据获取成功！\r\n");
+                Log.AppendText("调高器高度：" + cornerPoints[cnt][0]
+                    + "\r\n角点1X坐标：" + cornerPoints[cnt][1] + "\r\n角点1Y坐标：" + cornerPoints[cnt][2]
+                    + "\r\n角点2X坐标：" + cornerPoints[cnt][3] + "\r\n角点2Y坐标：" + cornerPoints[cnt][4] + "\r\n");
+            }
+
+            if (!isCaliing || !isCaliDone)
+            {
+                Log.AppendText(System.DateTime.Now + "：自动标定失败！\r\n");
+            }
+            else
+            {
+                optViewDist = Convert.ToDouble(lineOptViewDist.Text);
+                actualDist = Convert.ToDouble(lineActualDist.Text);
+                Log.AppendText(System.DateTime.Now + "：自动标定成功！\r\n");
+            }
+
+            mutex.WaitOne();
+            isCaliing = false;
+            textShowIsCaliing.Text = "标定结束";
+            mutex.ReleaseMutex();
+        }
+
+        private bool isParaAllRight()
+        {
+            if (lineOptViewDist.Text == "" || lineActualDist.Text == "")
+            {
+                Log.AppendText(System.DateTime.Now + "：未输入最佳视距或角点实际宽度！\r\n");
+                return false;
+            }
+            else
+            {
+                if (lineOptViewDist.Value.Equals(0) || lineActualDist.Value.Equals(0))
+                {
+                    Log.AppendText(System.DateTime.Now + "：最佳视距和角点实际宽度必须大于0！\r\n");
+                    return false;
+                }
+            }
+            if (String.IsNullOrEmpty(textEndPos.Text) || String.IsNullOrEmpty(textStartPos.Text))
+            {
+                Log.AppendText(System.DateTime.Now + "：未输入调高器起始点或终止点！\r\n");
+                return false;
+            }
+            return true;
+        }
+
+        private void btnStopCaliing_Click(object sender, EventArgs e)
+        {
+            mutex.WaitOne();
+            if (isCaliing)
+            {
+                isCaliing = false;
+                textShowIsCaliing.Text = "正在终止标定...";
+            }
+            mutex.ReleaseMutex();
+        }
+
+        private void btnCalMat_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(calMat);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void calMat()
+        {
+            //格式化指令为string字符串
+            string sensor_send_str = "{\"Cmd\":12";
+            sensor_send_str += ",\"Id\":" + Convert.ToString(id++);
+            sensor_send_str += ",\"DataCnt\":10,\"MidZ\":" + Convert.ToString(optViewDist);
+            for (int i = 0; i < cornerPoints.Length; i++)
+            {
+                sensor_send_str += ",\"LX" + i + "\":" + cornerPoints[i][1].ToString("0.00");
+                sensor_send_str += ",\"LY" + i + "\":" + cornerPoints[i][2].ToString("0.00");
+                sensor_send_str += ",\"RX" + i + "\":" + cornerPoints[i][3].ToString("0.00");
+                sensor_send_str += ",\"RY" + i + "\":" + cornerPoints[i][4].ToString("0.00");
+                sensor_send_str += ",\"Height" + i + "\":" + cornerPoints[i][0].ToString("0.00");
+                sensor_send_str += ",\"Width" + i + "\":" + actualDist;
+            }
+            sensor_send_str += "}";
+
+            ModelWeldTrack resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCalMatToSensor(sensor_send_str, ref resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：计算内参矩阵失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    Log.AppendText(System.DateTime.Now + "：计算内参成功，并已写入寻缝器！\r\n");
+
+                    Log.AppendText("MinZ: " + resp.MinZ + "\r\n");
+                    Log.AppendText("MidZ: " + resp.MidZ + "\r\n");
+                    Log.AppendText("MaxZ: " + resp.MaxZ + "\r\n");
+                    Log.AppendText("MinView: " + resp.MinView + "\r\n");
+                    Log.AppendText("MidView: " + resp.MidView + "\r\n");
+                    Log.AppendText("MaxView: " + resp.MaxView + "\r\n");
+
+                    //更新设备参数编辑界面
+                    frm2.UpdateDevicePara(resp);
+
+                    btnErrorVerify.Enabled = true;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+        }
+
+        private bool sendCalMatToSensor(string cmd, ref ModelWeldTrack resp)
+        {
+            //计算内参矩阵的指令发送格式不统一 单独用该函数处理
+            byte[] sensor_send_buf = Encoding.UTF8.GetBytes(cmd + "#Vision");
+            sensorSocket.Send(sensor_send_buf);
+            //Log.AppendText(sensor_input + "#Vision");
+
+            byte[] sensor_recv_buf = new byte[1024];
+            int len = sensorSocket.Receive(sensor_recv_buf);
+
+            if (len > 0)
+            {
+                string msg = Encoding.UTF8.GetString(sensor_recv_buf);
+                string[] jsonStrings = msg.Split('#');
+                resp = JsonConvert.DeserializeObject<ModelWeldTrack>(jsonStrings[0]);
+                //Log.AppendText(msg);
+                return true;
+            }
+
+            return false;
+        }
+
+        private void btnErrorVerify_Click(object sender, EventArgs e)
+        {
+            Thread t = new Thread(errorVerify);
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        private void errorVerify()
+        {
+            //验证全局参数合法性
+            if (!isParaAllRight())
+            {
+                return;
+            }
+
+            mutex.WaitOne();
+            if (isErrorChecking)
+            {
+                mutex.ReleaseMutex();
+                MessageBox.Show("误差验证正在进行，请勿重复点击！");
+                return;
+            }
+            isErrorChecking = true;
+            textShowIsChecking.Text = "正在误差验证中...";
+            mutex.ReleaseMutex();
+
+            Log.AppendText(System.DateTime.Now + "：开始误差验证\r\n");
+
+            //计算调高器步进距离
+            double endPos = Convert.ToDouble(textEndPos.Text.ToString());
+            double startPos = Convert.ToDouble(textStartPos.Text.ToString());
+            double stepDist = (endPos - startPos) / 9;
+            errorVerifyPoints[0][0] = startPos + 7.5 * stepDist;
+            errorVerifyPoints[1][0] = startPos + 4.5 * stepDist;
+            errorVerifyPoints[2][0] = startPos + 1.5 * stepDist;
+
+            //获取图像尺寸 设置左右检测区域范围
+            ModelWeldTrack image_req = new ModelWeldTrack(WeldTrackCMD.GetImageSize, ref id);
+            ModelWeldTrack image_resp = new ModelWeldTrack();
+            ModelWeldTrack detect_left_req = new ModelWeldTrack(WeldTrackCMD.SetDetectArea, ref id);
+            ModelWeldTrack detect_right_req = new ModelWeldTrack(WeldTrackCMD.SetDetectArea, ref id);
+            ModelWeldTrack detect_resp = new ModelWeldTrack();
+            try
+            {
+                if (!sendCmdToSensor(image_req, ref image_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：未接收到寻缝器返回数据！\r\n");
+                    return;
+                }
+
+                if (image_resp.Result != "true")
+                {
+                    Log.AppendText(System.DateTime.Now + "：获取寻缝器图像尺寸失败！\r\n");
+                    return;
+                }
+                else
+                {
+                    detect_left_req.X = 10;
+                    detect_left_req.Y = 10;
+                    detect_left_req.Width = image_resp.Width - 20;
+                    detect_left_req.Height = image_resp.Height / 2 - 20;
+                    detect_right_req.X = image_resp.Height / 2 + 10;
+                    detect_right_req.Y = 10;
+                    detect_right_req.Width = image_resp.Width - 20;
+                    detect_right_req.Height = image_resp.Height / 2 - 20;
+                    Log.AppendText(System.DateTime.Now + "：获取寻缝器图像尺寸成功\r\n");
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return;
+            }
+
+            //获取3组数据
+            int cnt = errorVerifyPoints.Length;
+            bool isCaliDone = true;//3组误差验证过程是否全部完成
+            ModelHeightAdjust prevZ_resp = new ModelHeightAdjust() { Zpos = -10000 };
+            while (isErrorChecking && cnt-- > 0)
+            {
+                //控制调高器移动到errorVerifyPoints[cnt]
+                ModelHeightAdjust move_req = new ModelHeightAdjust(HeightAdjustState.HeightMove, errorVerifyPoints[cnt][0]);
+                ModelHeightAdjust move_resp = new ModelHeightAdjust();
+                if (!sendCmdToHeight(move_req, ref move_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到调高器数据，误差验证终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+                if (move_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证连接调高器失败，误差验证终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+
+                //稍许等待让调高器运动 然后验证调高器是否到位
+                Thread.Sleep(200);
+
+                ModelHeightAdjust height_req = new ModelHeightAdjust(HeightAdjustState.HeightGet);
+                ModelHeightAdjust curZ_resp = new ModelHeightAdjust();
+                if (!sendCmdToHeight(height_req, ref curZ_resp))
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到调高器数据，误差验证终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+                if (curZ_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                {
+                    Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证连接调高器失败，误差验证终止！\r\n");
+                    isCaliDone = false;
+                    break;
+                }
+
+                //判断调高器是否到达指定位置或一直到不了指定位置
+                while (Math.Abs(curZ_resp.Zpos - errorVerifyPoints[cnt][0]) > 0.06)
+                {
+                    Thread.Sleep(200);
+                    if (!sendCmdToHeight(height_req, ref curZ_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到调高器数据，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    if (curZ_resp.CMDID == HeightAdjustState.HeightFailedConnect)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证连接调高器失败，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    if (Math.Abs(curZ_resp.Zpos - prevZ_resp.Zpos) < 0.05)
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证调高器无法运动到指定位置，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                    prevZ_resp.Zpos = curZ_resp.Zpos;
+                }
+
+                if (!isCaliDone)
+                {
+                    break;
+                }
+
+                //调高器运动到位之后等待1.75s再取角点
+                Thread.Sleep(1750);
+
+                //设置左侧检测区域
+                try
+                {
+                    if (!sendCmdToSensor(detect_left_req, ref detect_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到寻缝器数据，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+
+                    if (detect_resp.Result != "true")
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证设置左侧检测区域失败，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+
+                //设置完检测区域后等待2s再取点
+                Thread.Sleep(2000);
+
+                //获取左侧寻缝器相机坐标
+                bool isGetPoint_left = false;
+                ModelWeldTrack coord_req = new ModelWeldTrack(WeldTrackCMD.GetCameraPos, ref id);
+                ModelWeldTrack left_resp = new ModelWeldTrack();
+                for (int j = 0; isErrorChecking && j < 5; j++)
+                {
+                    try
+                    {
+                        if (!sendCmdToSensor(coord_req, ref left_resp))
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到寻缝器数据，误差验证终止！\r\n");
+                            isCaliDone = false;
+                            break;
+                        }
+
+                        if (left_resp.Result == "true")
+                        {
+                            isGetPoint_left = true;
+                            break;
+                        }
+                        else
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证第" + (j + 1) + "次未捕获到左侧相机坐标\r\n");
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (j + 1) + "次获取相机坐标超时!\r\n");
+                            Thread.Sleep(500);
+                            continue;
+                        }
+                        else
+                        {
+                            MessageBox.Show(ex.Message);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+
+                }
+
+                if (!isGetPoint_left)
+                {
+                    isCaliDone = false;
+                    break;
+                }
+
+                //设置右侧检测区域
+                try
+                {
+                    if (!sendCmdToSensor(detect_right_req, ref detect_resp))
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到寻缝器数据，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+
+                    if (detect_resp.Result != "true")
+                    {
+                        Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证设置右侧检测区域失败，误差验证终止！\r\n");
+                        isCaliDone = false;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                    break;
+                }
+
+                //设置完检测区域后等待2s再取点
+                Thread.Sleep(2000);
+
+                //获取右侧寻缝器相机坐标
+                bool isGetPoint_right = false;
+                ModelWeldTrack right_resp = new ModelWeldTrack();
+                for (int j = 0; isErrorChecking && j < 5; j++)
+                {
+                    try
+                    {
+                        if (!sendCmdToSensor(coord_req, ref right_resp))
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证未接收到寻缝器数据，误差验证终止！\r\n");
+                            isCaliDone = false;
+                            break;
+                        }
+
+                        if (right_resp.Result == "true")
+                        {
+                            isGetPoint_right = true;
+                            break;
+                        }
+                        else
+                        {
+                            Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证第" + (j + 1) + "次未捕获到右侧相机坐标\r\n");
+                            Thread.Sleep(1000);
+                            continue;
+                        }
+                    }
+                    catch (SocketException ex)
+                    {
+                        if (ex.SocketErrorCode == SocketError.TimedOut)
+                        {
+
+                            Log.AppendText(System.DateTime.Now + "：第" + (j + 1) + "次获取相机坐标超时!\r\n");
+                            Thread.Sleep(500);
+                            continue;
+                        }
+                        else
+                        {
+                            MessageBox.Show(ex.Message);
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message);
+                        break;
+                    }
+                }
+
+                if (!isGetPoint_right)
+                {
+                    isCaliDone = false;
+                    break;
+                }
+
+                //保存该组数据
+                errorVerifyPoints[cnt][1] = (double)left_resp.Y;
+                errorVerifyPoints[cnt][2] = (double)left_resp.Z;
+                errorVerifyPoints[cnt][3] = (double)right_resp.Y;
+                errorVerifyPoints[cnt][4] = (double)right_resp.Z;
+
+                Log.AppendText(System.DateTime.Now + "：第" + (3 - cnt) + "组误差验证数据获取成功！\r\n");
+                Log.AppendText("调高器高度：" + errorVerifyPoints[cnt][0]
+                    + "\r\n相机坐标左Y坐标：" + errorVerifyPoints[cnt][1] + "\r\n相机坐标左Z坐标：" + errorVerifyPoints[cnt][2]
+                    + "\r\n相机坐标右Y坐标：" + errorVerifyPoints[cnt][3] + "\r\n相机坐标右Z坐标：" + errorVerifyPoints[cnt][4] + "\r\n");
+            }
+
+            if (!isErrorChecking || !isCaliDone)
+            {
+                Log.AppendText(System.DateTime.Now + "：误差验证失败！\r\n");
+            }
+            else
+            {
+                Log.AppendText(System.DateTime.Now + "：误差验证成功！\r\n");
+
+                //actualDist = Convert.ToDouble(lineActualDist.Text);
+
+                double[] errorY = new double[3];
+                double[] errorZ = new double[3];
+                bool isYOK = true;
+                bool isZOK = true;
+                for (int i = 0; i < 3; i++)
+                {
+                    double gap = Math.Abs(errorVerifyPoints[i][3] - errorVerifyPoints[i][1]);
+                    errorY[i] = Math.Abs((gap - actualDist) / actualDist);
+                    errorZ[i] = Math.Abs(2 * (errorVerifyPoints[i][2] - errorVerifyPoints[i][4]) / (errorVerifyPoints[i][2] + errorVerifyPoints[i][4]));
+
+                    Log.AppendText("坐标参数" + (i + 1) + "的间距相对误差为：" + Math.Round(100 * errorY[i], 2) + "%\r\n");
+                    Log.AppendText("坐标参数" + (i + 1) + "的Z向误差为：" + Math.Round(100 * errorZ[i], 2) + "%\r\n");
+
+                    if (errorY[i] > 0.01)
+                    {
+                        isYOK = false;
+                    }
+                    if (errorZ[i] > 0.0018)
+                    {
+                        isZOK = false;
+                    }
+                }
+                double z = errorVerifyPoints[2][4] - errorVerifyPoints[2][0] - (errorVerifyPoints[0][4] - errorVerifyPoints[0][0]);
+                Log.AppendText("Z向误差为：" + Math.Round(z, 2) + "mm\r\n");
+
+                if (isYOK)
+                {
+                    Log.AppendText("左右间距通过\r\n");
+                }
+                else
+                {
+                    Log.AppendText("左右间距NG\r\n");
+                }
+                if (isZOK)
+                {
+                    Log.AppendText("Z向通过\r\n");
+                }
+                else
+                {
+                    Log.AppendText("Z向NG\r\n");
+                }
+            }
+
+            mutex.WaitOne();
+            isErrorChecking = false;
+            textShowIsChecking.Text = "误差验证结束";
+            mutex.ReleaseMutex();
+        }
+
+        private void btnStopChecking_Click(object sender, EventArgs e)
+        {
+            mutex.WaitOne();
+            if (isErrorChecking)
+            {
+                isErrorChecking = false;
+                textShowIsChecking.Text = "正在终止误差验证...";
+            }
+            mutex.ReleaseMutex();
+        }
+
+        private void btnParaEdit_Click(object sender, EventArgs e)
+        {
+            frm2.ShowDialog();
+        }
+
+        private void btnClearLog_Click(object sender, EventArgs e)
+        {
+            Log.Clear();
+        }
+
+    }
+}
