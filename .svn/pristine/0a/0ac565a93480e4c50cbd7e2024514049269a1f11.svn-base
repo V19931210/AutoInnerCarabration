@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "weldDeviceProduct": {
-      "commandName": "Project",
-      "nativeDebugging": false
-    }
-  }
-}
