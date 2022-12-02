@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "D:\\_2022\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj": {}
+    "C:\\Users\\qiqua\\iCloudDrive\\Documents\\FinalTask\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj": {}
   },
   "projects": {
-    "D:\\_2022\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj": {
+    "C:\\Users\\qiqua\\iCloudDrive\\Documents\\FinalTask\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\_2022\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj",
+        "projectUniqueName": "C:\\Users\\qiqua\\iCloudDrive\\Documents\\FinalTask\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj",
         "projectName": "weldDeviceProduct",
-        "projectPath": "D:\\_2022\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj",
-        "packagesPath": "C:\\Users\\qiquanwei\\.nuget\\packages\\",
-        "outputPath": "D:\\_2022\\AutoInnerCarabration\\weldDeviceProduct\\obj\\",
+        "projectPath": "C:\\Users\\qiqua\\iCloudDrive\\Documents\\FinalTask\\AutoInnerCarabration\\weldDeviceProduct\\weldDeviceProduct.csproj",
+        "packagesPath": "C:\\Users\\qiqua\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\qiqua\\iCloudDrive\\Documents\\FinalTask\\AutoInnerCarabration\\weldDeviceProduct\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+          "D:\\VisualStudio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\qiquanwei\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\qiqua\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
